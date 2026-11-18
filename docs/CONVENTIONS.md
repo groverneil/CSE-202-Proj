@@ -94,3 +94,15 @@ The printer emits a canonical form: rotations as `x y z`, exactly-all-inner as `
 The default move set (`Cube.moves()`) is the `9n` single-layer primitives
 `(axis, {layer}, turns)`. Which moves count as "one move" is a property of the move set
 passed to a solver, not of the cube.
+
+## Viewer
+
+- 3D units: the cube spans [-1, 1]³; sticker centres are `layout.center` (= sticker point / n).
+  Each sticker is a square quad of half-width `(1 - gap) / n`, wound counter-clockwise seen
+  from outside (`nxncube/viz/mesh.py`).
+- Animation: a move with `turns = 1, 2, 3` animates `+1, +2, -1` quarter turns (prime turns
+  go the short way). Angle sign follows the move convention above, so at the end of the
+  animation the quads land exactly where `cube.apply` puts the stickers.
+- Speed is in quarter turns per second. A half turn costs `half_turn_cost` (default 1.5)
+  quarter turns of time. Per-move speed > segment speed > timeline default.
+- Palette (3D and text): U white, R red, F green, D yellow, L orange, B blue.
