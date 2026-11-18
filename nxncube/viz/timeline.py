@@ -103,6 +103,13 @@ class Timeline:
             segs.append(Segment("solution", solution))
         return cls(cube, cube.solved(), segs, **kw)
 
+    @classmethod
+    def from_result(cls, cube, result, **kw):
+        """Replay a SolveResult: the scramble, then each solver phase as its own segment."""
+        segs = [Segment("scramble", result.scramble)]
+        segs += [Segment(label, moves) for label, moves in result.phases]
+        return cls(cube, cube.solved(), segs, **kw)
+
     # ---- queries ------------------------------------------------------------------------
 
     @property

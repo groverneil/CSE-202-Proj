@@ -14,7 +14,7 @@ dev = ["pytest"]
 viz = ["open3d==0.20.0"]
 
 [tool.setuptools.packages.find]
-include = ["nxncube*"]
+include = ["nxncube*", "solvers*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

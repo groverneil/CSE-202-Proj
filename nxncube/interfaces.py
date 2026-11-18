@@ -33,8 +33,7 @@ class CubeView(Puzzle, Protocol):
     def pieces(self, s: State) -> PieceState: ...
 
 
-class Solver(Protocol):
-    def solve(self, puzzle: Puzzle, s: State) -> list[Move]: ...
+# Solvers live outside this package: see solvers/base.py (Solver, SolveResult).
 
 
 class Scrambler(Protocol):
