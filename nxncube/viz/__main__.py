@@ -42,7 +42,7 @@ def main() -> None:
         played = [m for s in segments for m in s.moves]
         segments.append(Segment("undo", [m.inverse() for m in reversed(played)]))
 
-    timeline = Timeline(cube, cube.solved(), segments, speed=args.speed)
+    timeline = Timeline(cube, cube.solved(), segments, speed=args.speed, progress=True)
     Open3DViewer(cube, gap=args.gap).play(timeline, paused=args.paused)
 
 

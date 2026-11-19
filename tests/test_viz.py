@@ -212,3 +212,33 @@ def test_viewer_module_imports_without_open3d():
     code = "import sys; sys.modules['open3d'] = None; import nxncube.viz; print('ok')"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.stdout.strip() == "ok", out.stderr
+
+
+@pytest.mark.parametrize("every", [1, 3, 7, 100])
+def test_checkpointed_timeline_matches_every_state(every):
+    """Sparse checkpoints rebuild exactly the states a full precompute would store."""
+    c = cube(4)
+    moves = c.scramble(30, rng=random.Random(every))
+    expected = [c.solved()]
+    for m in moves:
+        expected.append(c.apply(expected[-1], m))
+    tl = Timeline.from_moves(c, c.solved(), moves, checkpoint_every=every)
+    assert tl.final_state == expected[-1]
+    assert len(tl.states) == len(expected) and tl.states[-1] == expected[-1]
+    order = list(range(len(expected))) + list(reversed(range(len(expected))))
+    order += random.Random(0).sample(range(len(expected)), len(expected))  # random seeks
+    for k in order:
+        assert tl.state(k) == expected[k], k
+    with pytest.raises(IndexError):
+        tl.state(len(expected))
+
+
+def test_checkpoint_budget_picks_spacing():
+    c = cube(3)
+    moves = c.scramble(40, rng=random.Random(1))
+    assert Timeline.from_moves(c, c.solved(), moves).checkpoint_every == 1
+    tl = Timeline.from_moves(c, c.solved(), moves, checkpoint_budget=54 * 10)
+    assert tl.checkpoint_every == 5  # 41 states of 54 bytes in 540 bytes
+    assert tl.frame(tl.duration).state == c.apply_moves(c.solved(), moves)
+    with pytest.raises(ValueError):
+        Timeline.from_moves(c, c.solved(), moves, checkpoint_every=0)

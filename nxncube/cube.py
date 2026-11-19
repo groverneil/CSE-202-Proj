@@ -29,7 +29,7 @@ class Cube:
         self.geometry = Geometry.build(n)
         self.rng = random.Random(seed)
         self.scrambler = scrambler if scrambler is not None else RandomMoveScrambler()
-        self._perms: dict[Move, np.ndarray] = {}
+        self._cycles: dict[Move, tuple[np.ndarray, np.ndarray]] = {}
         self._moves = tuple(
             Move(axis, layer, t) for axis in Axis for layer in range(n) for t in (1, 2, 3)
         )
@@ -69,7 +69,11 @@ class Cube:
         return self._all_moves
 
     def apply(self, s: State, m: Move) -> State:
-        return np.frombuffer(s, dtype=np.uint8)[self.perm(m)].tobytes()
+        dst, src = self.cycle(m)
+        a = np.frombuffer(s, dtype=np.uint8)
+        out = a.copy()
+        out[dst] = a[src]
+        return out.tobytes()
 
     def is_solved(self, s: State) -> bool:
         """Every face shows one colour (any of the 24 orientations counts)."""
@@ -97,28 +101,53 @@ class Cube:
         if max(m.layers) >= self.n:
             raise ValueError(f"{m!r} has a layer outside 0..{self.n - 1}")
 
-    def perm(self, m: Move) -> np.ndarray:
-        """Read-only sticker permutation of ``m`` (``new = state[perm]``), cached."""
-        p = self._perms.get(m)
-        if p is None:
+    def cycle(self, m: Move) -> tuple[np.ndarray, np.ndarray]:
+        """Sparse, read-only form of ``perm(m)``, cached: ``new[dst] = old[src]``.
+
+        Lists only the stickers ``m`` moves (4n + n² at most for a single layer), so the
+        cache stays small for large n where a dense 6n² permutation per move would not.
+        """
+        c = self._cycles.get(m)
+        if c is None:
             self.validate(m)
-            q = self.geometry.quarter_turn_perm(m.axis, m.layers)
+            qdst, qsrc = self.geometry.quarter_turn_cycle(m.axis, m.layers)
+            # Compose the quarter turn with itself on its own support only.
+            support = qsrc  # ascending, and the same set as qdst
+            q = np.empty(len(support), dtype=np.intp)
+            q[np.searchsorted(support, qdst)] = np.searchsorted(support, qsrc)
             p = q
             for _ in range(m.turns - 1):
                 p = p[q]
-            p.setflags(write=False)
-            self._perms[m] = p
+            src = support[p]
+            moved = src != support
+            dst, src = support[moved], src[moved]
+            dst.setflags(write=False)
+            src.setflags(write=False)
+            c = self._cycles[m] = (dst, src)
+        return c
+
+    def perm(self, m: Move) -> np.ndarray:
+        """Read-only dense sticker permutation of ``m`` (``new = state[perm]``)."""
+        dst, src = self.cycle(m)
+        p = np.arange(self.num_stickers)
+        p[dst] = src
+        p.setflags(write=False)
         return p
 
     def sequence_perm(self, moves: Iterable[Move]) -> np.ndarray:
         """Single permutation equal to applying ``moves`` in order."""
         p = np.arange(self.num_stickers)
         for m in moves:
-            p = p[self.perm(m)]
+            dst, src = self.cycle(m)
+            p[dst] = p[src]
         return p
 
     def apply_moves(self, s: State, moves: Iterable[Move]) -> State:
-        return np.frombuffer(s, dtype=np.uint8)[self.sequence_perm(moves)].tobytes()
+        a = np.frombuffer(s, dtype=np.uint8).copy()
+        for m in moves:
+            dst, src = self.cycle(m)
+            a[dst] = a[src]  # the right side is gathered into a temporary first
+        return a.tobytes()
 
     def rotation(self, axis: Axis | int, turns: int = 1) -> Move:
         """Whole-cube rotation x, y or z."""

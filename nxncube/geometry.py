@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import IntEnum
+from functools import cached_property
 from typing import Iterable
 
 import numpy as np
@@ -70,6 +71,14 @@ QUARTER_TURN: dict[Axis, np.ndarray] = {
 }
 
 
+# Face whose outward normal is (axis, sign): _FACE_OF_NORMAL[axis, sign > 0].
+_FACE_OF_NORMAL = np.zeros((3, 2), dtype=np.int64)
+for _f, (_a, _s) in FACE_NORMAL.items():
+    _FACE_OF_NORMAL[_a, int(_s > 0)] = int(_f)
+_RIGHT_ARR = np.array([_FACE_RIGHT[f] for f in Face], dtype=np.int64)
+_DOWN_ARR = np.array([_FACE_DOWN[f] for f in Face], dtype=np.int64)
+
+
 def _unit(axis: Axis, sign: int) -> np.ndarray:
     v = np.zeros(3, dtype=np.int64)
     v[axis] = sign
@@ -88,7 +97,6 @@ class Geometry:
     normals: np.ndarray  # (N, 3) outward unit normal
     cubies: np.ndarray  # (N, 3) position of the cubie the sticker belongs to
     layers: np.ndarray  # (N, 3) layer index of the sticker on each axis
-    _lookup: np.ndarray  # dense position -> index table
 
     @classmethod
     def build(cls, n: int) -> "Geometry":
@@ -116,12 +124,6 @@ class Geometry:
         cubies = np.clip(points, -(n - 1), n - 1)
         layers = (cubies + (n - 1)) // 2
 
-        size = 2 * n + 1
-        lookup = np.full(size**3, -1, dtype=np.int64)
-        lookup[cls._key(points, n)] = np.arange(len(points))
-        if (lookup >= 0).sum() != 6 * n * n:
-            raise AssertionError("sticker points are not distinct")
-
         for arr in (points, cubies, layers):
             arr.setflags(write=False)
         return cls(
@@ -133,40 +135,74 @@ class Geometry:
             normals=np.concatenate(nrm).astype(np.int64),
             cubies=cubies,
             layers=layers,
-            _lookup=lookup,
         )
-
-    @staticmethod
-    def _key(points: np.ndarray, n: int) -> np.ndarray:
-        size = 2 * n + 1
-        p = points + n
-        return (p[:, 0] * size + p[:, 1]) * size + p[:, 2]
 
     @property
     def num_stickers(self) -> int:
         return 6 * self.n * self.n
 
     def index_of(self, points: np.ndarray) -> np.ndarray:
-        """Facelet indices of the given sticker points (shape (k, 3))."""
-        points = np.asarray(points, dtype=np.int64).reshape(-1, 3)
-        if np.abs(points).max(initial=0) > self.n:
+        """Facelet indices of the given sticker points (shape (k, 3)).
+
+        Computed directly from the point (its ±n coordinate picks the face, the other two
+        give row and column), so no position table is needed: that table has (2n+1)³
+        entries, which is 64 GB at n = 1000.
+        """
+        n = self.n
+        p = np.asarray(points, dtype=np.int64).reshape(-1, 3)
+        if np.abs(p).max(initial=0) > n:
             raise KeyError("point outside the cube")
-        idx = self._lookup[self._key(points, self.n)]
-        if (idx < 0).any():
+        on_face = np.abs(p) == n
+        if (on_face.sum(axis=1) != 1).any():
             raise KeyError("point is not a sticker position")
-        return idx
+        axis = np.argmax(on_face, axis=1)
+        sign = p[np.arange(len(p)), axis] > 0
+        face = _FACE_OF_NORMAL[axis, sign.astype(np.int64)]
+        c = (p * _RIGHT_ARR[face]).sum(axis=1) + (n - 1)
+        r = (p * _DOWN_ARR[face]).sum(axis=1) + (n - 1)
+        if ((c % 2) | (r % 2)).any():
+            raise KeyError("point is not a sticker position")
+        return face * n * n + (r // 2) * n + c // 2
 
     def facelet(self, face: Face, row: int, col: int) -> int:
         return int(face) * self.n * self.n + row * self.n + col
+
+    @cached_property
+    def _layer_index(self) -> tuple[tuple[np.ndarray, np.ndarray], ...]:
+        """Per axis: sticker indices sorted by layer, and where each layer starts."""
+        idx_dtype = np.int32 if self.num_stickers < 2**31 else np.int64
+        out = []
+        for axis in Axis:
+            key = self.layers[:, axis]
+            order = np.argsort(key, kind="stable").astype(idx_dtype)
+            bounds = np.searchsorted(key[order], np.arange(self.n + 1))
+            out.append((order, bounds))
+        return tuple(out)
+
+    def stickers_in_layers(self, axis: Axis, layers: Iterable[int]) -> np.ndarray:
+        """Facelet indices of every sticker in ``layers`` on ``axis`` (ascending)."""
+        order, bounds = self._layer_index[axis]
+        parts = [order[bounds[l]:bounds[l + 1]] for l in sorted(set(layers))]
+        if not parts:
+            return np.zeros(0, dtype=order.dtype)
+        return np.sort(np.concatenate(parts))
+
+    def quarter_turn_cycle(self, axis: Axis, layers: Iterable[int]) -> tuple[np.ndarray, np.ndarray]:
+        """Sparse form of ``quarter_turn_perm``: ``(dst, src)`` with ``new[dst] = old[src]``.
+
+        Only the stickers in the turning layers appear, so its size is O(n) for an inner
+        layer and O(n²) for an outer one instead of 6n².
+        """
+        src = self.stickers_in_layers(axis, layers)
+        dst = self.index_of(self.points[src] @ QUARTER_TURN[axis].T).astype(src.dtype)
+        return dst, src
 
     def quarter_turn_perm(self, axis: Axis, layers: Iterable[int]) -> np.ndarray:
         """Permutation for one clockwise quarter turn of ``layers`` about ``axis``.
 
         ``new_state = state[perm]``: ``perm[i]`` is where the sticker now at ``i`` came from.
         """
-        layers = list(layers)
-        src = np.flatnonzero(np.isin(self.layers[:, axis], layers))
-        dst = self.index_of(self.points[src] @ QUARTER_TURN[axis].T)
+        dst, src = self.quarter_turn_cycle(axis, layers)
         perm = np.arange(self.num_stickers)
         perm[dst] = src
         return perm

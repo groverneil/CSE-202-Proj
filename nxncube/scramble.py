@@ -26,8 +26,12 @@ class RandomMoveScrambler:
         if length is None:
             n = getattr(puzzle, "n", 3)
             length = default_scramble_length(n)
-        solved = puzzle.solved()
-        candidates = [m for m in puzzle.moves() if not puzzle.is_solved(puzzle.apply(solved, m))]
+        is_rotation = getattr(puzzle, "is_rotation", None)
+        if is_rotation is not None:  # cheap test; applying every move is O(n³) work at large n
+            candidates = [m for m in puzzle.moves() if not is_rotation(m)]
+        else:
+            solved = puzzle.solved()
+            candidates = [m for m in puzzle.moves() if not puzzle.is_solved(puzzle.apply(solved, m))]
         if not candidates:
             raise ValueError("puzzle has no scrambling moves")
 

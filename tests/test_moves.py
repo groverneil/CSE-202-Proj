@@ -191,3 +191,20 @@ def test_bfs_2x2_state_count_and_depth():
     assert sum(counts) == 3_674_160
     assert len(counts) - 1 == 11
     assert counts == HTM_2x2
+
+
+def test_index_of_inverts_points(any_cube):
+    g = any_cube.geometry
+    assert np.array_equal(g.index_of(g.points), np.arange(any_cube.num_stickers))
+    n = any_cube.n
+    for bad in ([n + 1, 0, 0], [n, n, 0], [0, 0, 0], [n, n - 2, 0]):
+        with pytest.raises(KeyError):
+            g.index_of(np.array([bad]))
+
+
+def test_cycle_lists_only_moved_stickers(any_cube):
+    for m in all_moves(any_cube):
+        dst, src = any_cube.cycle(m)
+        p = any_cube.perm(m)
+        moved = np.flatnonzero(p != np.arange(any_cube.num_stickers))
+        assert np.array_equal(np.sort(dst), moved) and np.array_equal(p[dst], src), m

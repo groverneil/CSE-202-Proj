@@ -89,3 +89,23 @@ def test_can_follow_rule():
 
 def test_parse_ignores_parentheses():
     assert parse("(R U R' U')", 3) == parse("R U R' U'", 3)
+
+
+class _NoRotationShortcut:
+    """Wraps a cube but hides ``is_rotation``, forcing the scrambler's generic path."""
+
+    def __init__(self, c):
+        self._c = c
+
+    def __getattr__(self, name):
+        if name == "is_rotation":
+            raise AttributeError(name)
+        return getattr(self._c, name)
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_scrambler_rotation_shortcut_matches_generic_path(n):
+    c = cube(n)
+    fast = c.scrambler.scramble(c, random.Random(9), 40)
+    slow = c.scrambler.scramble(_NoRotationShortcut(c), random.Random(9), 40)
+    assert fast == slow

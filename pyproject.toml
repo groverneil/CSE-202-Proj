@@ -11,7 +11,7 @@ dependencies = ["numpy"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
-viz = ["open3d==0.20.0"]
+viz = ["open3d==0.20.0", "tqdm"]
 
 [tool.setuptools.packages.find]
 include = ["nxncube*", "solvers*"]
