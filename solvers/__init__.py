@@ -4,6 +4,7 @@
         base.py          Solver, SolveResult (the interface; no solving logic)
         conformance.py   assert_solver_conforms(...) for testing any solver
         <name>.py        one solver per module, e.g. bfs.py, ida_star.py, kociemba.py, reduction.py
+        commutator/      CommutatorSolver: piece-by-piece pure commutators, any n (see its README)
 """
 
 from .base import Solver, SolveResult, quarter_turns

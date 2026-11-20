@@ -66,6 +66,17 @@ Open3DViewer(cube).play(Timeline.from_result(cube, result, speed=4))   # scrambl
 Timeline(cube, start, [Segment("centers", c_moves, speed=6), Segment("3x3", m3, speed=2)])
 ```
 
+## Solvers
+
+| solver | module | what it does |
+|---|---|---|
+| `CommutatorSolver` | [`solvers/commutator/`](solvers/commutator/README.md) | any n, any scramble: places one piece at a time with pure 3-cycle commutators; ~6n² moves |
+
+```python
+from solvers.commutator import CommutatorSolver
+result = CommutatorSolver().solve(Cube(5), Cube(5).scramble())
+```
+
 ## Writing a solver
 
 Subclass `Solver` and implement `_solve(cube, state)`. It sees the scrambled state, never

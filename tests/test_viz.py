@@ -242,3 +242,65 @@ def test_checkpoint_budget_picks_spacing():
     assert tl.frame(tl.duration).state == c.apply_moves(c.solved(), moves)
     with pytest.raises(ValueError):
         Timeline.from_moves(c, c.solved(), moves, checkpoint_every=0)
+
+
+# ---- recording -----------------------------------------------------------------------
+
+
+def _boxes(data: bytes, start: int = 0, end: int | None = None):
+    """Top-level QuickTime boxes in data[start:end] as (type, payload_start, box_end)."""
+    import struct
+
+    end = len(data) if end is None else end
+    i, out = start, []
+    while i < end:
+        size, kind = struct.unpack(">I4s", data[i:i + 8])
+        head = 8
+        if size == 1:
+            size, head = struct.unpack(">Q", data[i + 8:i + 16])[0], 16
+        out.append((kind.decode(), i + head, i + size))
+        i += size
+    return out
+
+
+def test_mov_writer_container(tmp_path):
+    import struct
+
+    pytest.importorskip("open3d")
+    from nxncube.viz import MovWriter
+
+    path = tmp_path / "t.mov"
+    with MovWriter(path, 32, 24, fps=10) as w:
+        for k in range(3):
+            w.write(np.full((24, 32, 3), k / 3.0))
+    data = path.read_bytes()
+    kinds = [k for k, _, _ in _boxes(data)]
+    assert kinds == ["ftyp", "mdat", "moov"]
+    _, moov_start, moov_end = _boxes(data)[2]
+    stsz = data.index(b"stsz", moov_start)
+    count = struct.unpack(">I", data[stsz + 12:stsz + 16])[0]
+    assert count == 3
+    co64 = data.index(b"co64", moov_start)
+    offsets = struct.unpack(">3Q", data[co64 + 12:co64 + 36])
+    assert all(data[o:o + 2] == b"\xff\xd8" for o in offsets)  # each sample is a JPEG
+
+
+def test_record_writes_one_frame_per_tick():
+    pytest.importorskip("open3d")
+    from nxncube.viz import Open3DViewer
+
+    class Frames:
+        width, height, fps = 64, 48, 10
+
+        def __init__(self):
+            self.shapes = []
+
+        def write(self, rgb):
+            self.shapes.append(np.asarray(rgb).shape)
+
+    c = cube(2)
+    tl = Timeline.from_moves(c, c.solved(), parse("R U", 2), speed=2.0, pause=0.0)
+    w = Frames()
+    k = Open3DViewer(c).record(tl, w, lead_in=0.5, hold=0.2, caption=lambda f: ["test"])
+    assert k == len(w.shapes) == 5 + (int(tl.duration * 10) + 1) + 3
+    assert set(w.shapes) == {(48, 64, 3)}

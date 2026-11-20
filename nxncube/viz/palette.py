@@ -16,3 +16,4 @@ DEFAULT_RGB = np.array(
 
 BODY_RGB = np.array([0.05, 0.05, 0.05])
 BACKGROUND_RGB = np.array([0.13, 0.14, 0.16])
+CAPTION_RGB = np.array([0.92, 0.92, 0.92])  # recorded-video captions

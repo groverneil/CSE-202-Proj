@@ -1,0 +1,10 @@
+22:18:37 n= 2: 100/100 correct, moves 56 (min 16, max 87), time mean 0.012s max 0.070s, library 0.05s, rss 32 MB
+22:18:44 n= 3: 100/100 correct, moves 142 (min 90, max 192), time mean 0.071s max 0.433s, library 0.38s, rss 37 MB
+22:18:56 n= 4: 100/100 correct, moves 355 (min 260, max 426), time mean 0.114s max 0.436s, library 0.32s, rss 47 MB
+22:19:16 n= 5: 100/100 correct, moves 601 (min 504, max 709), time mean 0.198s max 0.785s, library 0.70s, rss 60 MB
+22:20:00 n= 6: 100/100 correct, moves 927 (min 825, max 1003), time mean 0.437s max 1.541s, library 1.18s, rss 82 MB
+22:21:06 n= 7: 100/100 correct, moves 1327 (min 1182, max 1539), time mean 0.663s max 2.901s, library 2.03s, rss 109 MB
+22:22:58 n= 8: 100/100 correct, moves 1743 (min 1628, max 1867), time mean 1.120s max 4.598s, library 3.03s, rss 147 MB
+22:25:32 n= 9: 100/100 correct, moves 2297 (min 2048, max 2488), time mean 1.536s max 5.516s, library 4.45s, rss 188 MB
+22:29:57 n=10: 100/100 correct, moves 2862 (min 2707, max 2992), time mean 2.640s max 9.109s, library 6.47s, rss 249 MB
+done: 900 solves in 11.3 min; all correct: True
